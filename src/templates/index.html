@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>图像增强处理</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+        }
+        .image-container {
+            flex: 1;
+            text-align: center;
+            max-width: 500px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .image-wrapper {
+            width: 100%;
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background-color: #f5f5f5;
+            border-radius: 8px;
+        }
+        img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            margin: 0;
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        .loading {
+            display: none;
+        }
+        .param-group {
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .help-btn {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .help-btn:hover {
+            background: #0056b3;
+        }
+        .tooltip {
+            display: none;
+            position: absolute;
+            background: #333;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            max-width: 300px;
+            z-index: 1000;
+            margin-left: 30px;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #f0f0f0;
+            border-radius: 10px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+        
+        .progress {
+            width: 0%;
+            height: 100%;
+            background-color: #007bff;
+            transition: width 0.3s ease;
+        }
+        
+        .status-text {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+        h3 {
+            margin: 10px 0;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            padding: 0;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-content {
+            max-width: 95vw;
+            max-height: 95vh;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            margin: 0;
+            box-shadow: 0 0 20px rgba(0,0,0,0.3);
+            transform-origin: center;
+        }
+        
+        .close {
+            position: fixed;
+            right: 25px;
+            top: 15px;
+            color: #fff;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 1001;
+            text-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+        
+        .close:hover,
+        .close:focus {
+            color: #bbb;
+            text-decoration: none;
+        }
+
+        .modal-content {
+            opacity: 0;
+            transform: scale(0.5);
+            transition: all 0.3s ease-out;
+        }
+
+        .modal.show .modal-content {
+            width: 200%;
+            height: 200%;
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .image-wrapper img {
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>低光照图像增强</h1>
+    
+    <div class="controls">
+        <form id="uploadForm">
+            <div class="param-group">
+                <input type="file" id="imageInput" accept="image/*" required>
+            </div>
+            
+            <div class="param-group">
+                <label>增强方法：</label>
+                <select name="method" id="method">
+                    <option value="DUAL">DUAL</option>
+                    <option value="LIME">LIME</option>
+                </select>
+                <button type="button" class="help-btn">?</button>
+                <div class="tooltip">
+                    DUAL方法：同时处理曝光不足和曝光过度的问题，并将结果融合。
+                    适合处理复杂光照场景。<br><br>
+                    LIME方法：只处理曝光不足的问题。处理速度更快，
+                    适合处理单纯的低光照场景。
+                </div>
+            </div>
+            
+            <div class="param-group">
+                <label>Gamma值：</label>
+                <input type="number" id="gamma" name="gamma" value="0.6" step="0.1" min="0.1" max="2.0">
+                <button type="button" class="help-btn">?</button>
+                <div class="tooltip">
+                    Gamma值控制图像的整体亮度调整程度：<br>
+                    - 值越小（如0.1-0.5）：图像整体更亮<br>
+                    - 值越大（如1.5-2.0）：图像整体更暗<br>
+                    - 建议范围：0.4-0.8<br>
+                    调整时建议从0.6开始，根据效果逐步调整。
+                </div>
+            </div>
+            
+            <div class="param-group">
+                <label>Lambda值：</label>
+                <input type="number" id="lambda" name="lambda" value="0.15" step="0.05" min="0.05" max="1.0">
+                <button type="button" class="help-btn">?</button>
+                <div class="tooltip">
+                    Lambda值控制细节增强的程度：<br>
+                    - 值越小（如0.05-0.1）：细节增强更强，可能产生噪点<br>
+                    - 值越大（如0.3-1.0）：细节增强更柔和，可能显得模糊<br>
+                    - 建议范围：0.1-0.2<br>
+                    当图像噪点明显时，可以适当增大该值。
+                </div>
+            </div>
+            
+            <button type="submit">处理图像</button>
+        </form>
+    </div>
+
+    <div class="container">
+        <div class="image-container">
+            <h3>原始图像</h3>
+            <div class="image-wrapper">
+                <img id="originalImage">
+            </div>
+        </div>
+        <div class="image-container">
+            <h3>处理后图像</h3>
+            <div class="image-wrapper">
+                <img id="processedImage">
+            </div>
+            <div id="loading" class="loading">
+                处理中...<br>
+                <div class="progress-bar">
+                    <div class="progress"></div>
+                </div>
+                <small>大图像处理可能需要几秒钟时间</small>
+            </div>
+        </div>
+    </div>
+
+    <div id="imageModal" class="modal">
+        <span class="close">&times;</span>
+        <img id="modalImage" class="modal-content">
+    </div>
+
+    <script>
+        document.querySelectorAll('.help-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const tooltip = e.target.nextElementSibling;
+                
+                document.querySelectorAll('.tooltip').forEach(tip => {
+                    if (tip !== tooltip) {
+                        tip.style.display = 'none';
+                    }
+                });
+                
+                tooltip.style.display = tooltip.style.display === 'block' ? 'none' : 'block';
+                
+                e.stopPropagation();
+            });
+        });
+        
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.tooltip').forEach(tooltip => {
+                tooltip.style.display = 'none';
+            });
+        });
+        
+        async function checkProgress(taskId) {
+            try {
+                const response = await fetch(`http://127.0.0.1:5500/status/${taskId}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error('Error checking progress:', error);
+                return null;
+            }
+        }
+
+        async function updateProgress(taskId) {
+            const progressBar = document.querySelector('.progress');
+            const statusText = document.querySelector('.status-text');
+            
+            while (true) {
+                const status = await checkProgress(taskId);
+                if (!status) break;
+
+                progressBar.style.width = `${status.progress}%`;
+                
+                if (status.status === 'completed') {
+                    break;
+                } else if (status.status === 'failed') {
+                    throw new Error(status.error || '处理失败');
+                }
+                
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+        }
+
+        document.getElementById('imageInput').addEventListener('change', function(e) {
+            const imageFile = e.target.files[0];
+            if (imageFile) {
+                const originalImage = document.getElementById('originalImage');
+                originalImage.src = URL.createObjectURL(imageFile);
+            }
+        });
+
+        document.getElementById('uploadForm').onsubmit = async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            const imageFile = document.getElementById('imageInput').files[0];
+            if (!imageFile) {
+                alert('请选择图片文件');
+                return;
+            }
+            
+            formData.append('image', imageFile);
+            formData.append('method', document.getElementById('method').value);
+            formData.append('gamma', document.getElementById('gamma').value);
+            formData.append('lambda', document.getElementById('lambda').value);
+
+            const loadingDiv = document.getElementById('loading');
+            loadingDiv.style.display = 'block';
+            document.querySelector('.progress').style.width = '0%';
+            document.getElementById('processedImage').style.display = 'none';
+
+            try {
+                const response = await fetch('http://127.0.0.1:5500/process', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    const text = await response.text();
+                    console.log('Error response:', text);
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                const taskId = data.task_id;
+                
+                await updateProgress(taskId);
+
+                const imageResponse = await fetch(`http://127.0.0.1:5500/result/${taskId}`);
+                if (!imageResponse.ok) {
+                    throw new Error(`Failed to get result: ${imageResponse.status}`);
+                }
+
+                const blob = await imageResponse.blob();
+                const processedImage = document.getElementById('processedImage');
+                processedImage.src = URL.createObjectURL(blob);
+                processedImage.style.display = 'block';
+            } catch (error) {
+                console.error('Error:', error);
+                alert('处理失败，请重试: ' + error.message);
+            } finally {
+                loadingDiv.style.display = 'none';
+            }
+        };
+
+        const modal = document.getElementById('imageModal');
+        const modalImg = document.getElementById('modalImage');
+        const closeBtn = document.getElementsByClassName('close')[0];
+
+        document.getElementById('originalImage').onclick = function() {
+            showModal(this.src);
+        };
+
+        document.getElementById('processedImage').onclick = function() {
+            showModal(this.src);
+        };
+
+        function showModal(src) {
+            modal.style.display = 'flex';
+            modalImg.src = src;
+            
+            modalImg.onload = function() {
+                modal.classList.add('show');
+            };
+        }
+
+        function closeModal() {
+            modal.classList.remove('show');
+            setTimeout(() => {
+                modal.style.display = 'none';
+                modalImg.src = '';
+            }, 300);
+        }
+
+        closeBtn.onclick = function(e) {
+            e.stopPropagation();
+            closeModal();
+        };
+
+        modal.onclick = function(event) {
+            if (event.target === modal) {
+                closeModal();
+            }
+        };
+
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape' && modal.style.display === 'flex') {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>

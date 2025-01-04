@@ -1,0 +1,7 @@
+numpy
+scipy
+opencv-python
+tqdm
+flask
+flask-cors
+werkzeug
